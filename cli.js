@@ -21,6 +21,11 @@ async function main () {
     lineCount++
     if (line.startsWith('$$ ')) {
       cmdCount++
+      if (line.startsWith('$$ restart')) {
+        stack = []
+        continue
+      }
+      
       // console.log(line)
       const m = line.match(/^\$\$ (.*?(\d\d\d\d)) ?(.*)/)
       if (m) {
@@ -44,6 +49,7 @@ async function main () {
           stack.push(entry)
         } else if (op === ')))') {
           const start = stack.pop()
+          if (!start) console.error('too many )))')
           if (!span(start.text, start.date, date)) {
             console.log('bad )))', start, m)
           }
@@ -69,6 +75,10 @@ async function main () {
     
   }
   // console.log('stats:', {lineCount, cmdCount})
+
+  if (stack.length) {
+    console.log('\n some unclosed entries: %O', stack.slice(0,5))
+  }
 }
 
 let prevDay

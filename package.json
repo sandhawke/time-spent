@@ -2,7 +2,7 @@
   "name": "time-spent",
   "version": "0.0.0",
   "description": "Report on how I spent my time, based on my personal log format",
-  "main": "index.js",
+  "bin": "cli.js",
   "scripts": {
     "test": "npx standard && npx jest --coverage"
   },
