@@ -16,6 +16,7 @@ async function main () {
 
   let lineCount = 0
   let cmdCount = 0
+  let stack = []
   for (const line of lines) {
     lineCount++
     if (line.startsWith('$$ ')) {
@@ -35,14 +36,52 @@ async function main () {
         }
         const [op, ...wordList] = m[3].split(' ')
         const text = wordList.join(' ')
-        console.log(date.toISOString(), op, text)
+        
+        // console.log('\n', date.toISOString(), op, text)
+        const entry = {date, text}
+
+        if (op === '(((') {
+          stack.push(entry)
+        } else if (op === ')))') {
+          const start = stack.pop()
+          if (!span(start.text, start.date, date)) {
+            console.log('bad )))', start, m)
+          }
+        } else if (op === '),(') {
+          const start = stack.pop()
+          if (!span(start.text, start.date, date)) {
+            console.log('bad ):(', start, m)
+          }
+          stack.push(entry)
+        } else {
+          const [hs, ms] = op.split(':')
+          const hours = parseFloat(hs) || 0
+          const minutes = parseFloat(ms) || 0
+          const dur = 3600000 * hours + 60000 * minutes
+          if (!span(text, new Date(date - dur), date)) {
+            console.log('bad h:m', m)
+          }
+        }
       } else {
         console.log('bad format: %o', line)
       }
     }
     
   }
-  console.log('stats:', {lineCount, cmdCount})
+  // console.log('stats:', {lineCount, cmdCount})
+}
+
+let prevDay
+function span(activity, start, stop) {
+  const hours = Math.round((stop - start)/36000) / 100
+  if (isNaN(hours)) return false
+  const adjstop = new Date(stop - 3600 * 1000 * 5) // 5 am
+  if (adjstop.getDay() != prevDay) {
+    console.log()
+    prevDay = adjstop.getDay()
+  }
+  console.log(stop.toLocaleString("en-US").padEnd(22), ('' + hours).padStart(6), '  ', activity)
+  return true
 }
 
 main()
