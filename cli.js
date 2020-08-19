@@ -20,7 +20,25 @@ async function main () {
     lineCount++
     if (line.startsWith('$$ ')) {
       cmdCount++
-      console.log(line)
+      // console.log(line)
+      const m = line.match(/^\$\$ (.*?(\d\d\d\d)) ?(.*)/)
+      if (m) {
+        // console.log(m)
+        const datePart = m[1]
+        let date
+        try {
+          date = new Date(datePart)
+          const iso = date.toISOString()
+        } catch (e) {
+          console.error('BAD DATE', m, datePart, date)
+          continue
+        }
+        const [op, ...wordList] = m[3].split(' ')
+        const text = wordList.join(' ')
+        console.log(date.toISOString(), op, text)
+      } else {
+        console.log('bad format: %o', line)
+      }
     }
     
   }
