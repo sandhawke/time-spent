@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // -*-mode: js2-mode -*-
 
+// BUG    hh:mm entries are NOT subtracted from the time they are inside.
+
 const fs = require('fs/promises')
 const bufSize = 1000000
 async function main () {
@@ -90,7 +92,7 @@ function span(activity, start, stop) {
     console.log()
     prevDay = adjstop.getDay()
   }
-  console.log(stop.toLocaleString("en-US").padEnd(22), ('' + hours).padStart(6), '  ', activity)
+  console.log(('' + hours).padStart(6), ' +# ', stop.toLocaleString("en-US").padEnd(22), '  ', activity)
   return true
 }
 
