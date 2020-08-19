@@ -1,0 +1,26 @@
+{
+  "name": "time-spent",
+  "version": "0.0.0",
+  "description": "Report on how I spent my time, based on my personal log format",
+  "main": "index.js",
+  "scripts": {
+    "test": "npx standard && npx jest --coverage"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sandhawke/time-spent.git"
+  },
+  "keywords": [
+    "sandhawke"
+  ],
+  "author": "Sandro Hawke (http://hawke.org/sandro)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/sandhawke/time-spent/issues"
+  },
+  "homepage": "https://github.com/sandhawke/time-spent#readme",
+  "dependencies": {
+    "debug": "^4.1.0",
+    "nexline": "^1.2.1"
+  }
+}
