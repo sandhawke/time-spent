@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // -*-mode: js2-mode -*-
 
-// BUG    hh:mm entries are NOT subtracted from the time they are inside.
+const argv = process.argv
 
 const fs = require('fs/promises')
 const bufSize = 1000000
@@ -19,6 +19,7 @@ async function main () {
   let lineCount = 0
   let cmdCount = 0
   let stack = []
+  
   for (const line of lines) {
     lineCount++
     if (line.startsWith('$$ ')) {
@@ -52,12 +53,12 @@ async function main () {
         } else if (op === ')))') {
           const start = stack.pop()
           if (!start) console.error('too many )))')
-          if (!span(start.text, start.date, date)) {
+          if (!span(start, date, stack[stack.length - 1])) {
             console.log('bad )))', start, m)
           }
         } else if (op === '),(') {
           const start = stack.pop()
-          if (!span(start.text, start.date, date)) {
+          if (!span(start, date, stack[stack.length - 1])) {
             console.log('bad ):(', start, m)
           }
           stack.push(entry)
@@ -66,7 +67,7 @@ async function main () {
           const hours = parseFloat(hs) || 0
           const minutes = parseFloat(ms) || 0
           const dur = 3600000 * hours + 60000 * minutes
-          if (!span(text, new Date(date - dur), date)) {
+          if (!span({text, date: new Date(date - dur)}, date, stack[stack.length - 1])) {
             console.log('bad h:m', m)
           }
         }
@@ -84,15 +85,42 @@ async function main () {
 }
 
 let prevDay
-function span(activity, start, stop) {
-  const hours = Math.round((stop - start)/36000) / 100
-  if (isNaN(hours)) return false
-  const adjstop = new Date(stop - 3600 * 1000 * 5) // 5 am
-  if (adjstop.getDay() != prevDay) {
-    console.log()
-    prevDay = adjstop.getDay()
+function span(entry, stop, lowerEntry) {
+  let {text, date: start, missing} = entry
+  if (!missing) missing = 0
+
+  const passed = stop - start
+  const used = stop - start - missing
+
+  const hoursPassed = Math.round((passed)/36000) / 100
+  const hoursUsed = Math.round((used)/36000) / 100
+  // console.warn('%o', {entry, stop, lowerEntry, hours, lowerEntry})
+  if (isNaN(hoursUsed)) {
+    return false
   }
-  console.log(('' + hours).padStart(6), ' +# ', stop.toLocaleString("en-US").padEnd(22), '  ', activity)
+
+  // skip a line if "new day"
+  const adjstop = new Date(stop - 3600 * 1000 * 5) // 5 am
+  if (adjstop.getDate() != prevDay) {
+    console.log()
+    prevDay = adjstop.getDate()
+  }
+
+  let skip = false
+  if (argv.includes('--work')) {
+    if (text.startsWith('-')) skip = true
+  }
+  if (!skip) {
+    if (argv.includes('--csv')) {
+      console.log('%s\t%s\t%s\t%s', ('' + prevDay).padStart(2), ('' + hoursUsed).padStart(6), text.padEnd(40), stop.toLocaleString("en-US").padEnd(22))
+    } else {
+      console.log(('' + hoursUsed).padStart(6), ' +# ', stop.toLocaleString("en-US").padEnd(22), '  ', text, start, stop, missing)
+    }
+  }
+
+  if (lowerEntry) {
+    lowerEntry.missing = (lowerEntry.missing || 0) + passed
+  }
   return true
 }
 
