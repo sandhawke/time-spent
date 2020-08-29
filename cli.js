@@ -5,6 +5,7 @@ const argv = process.argv
 
 const fs = require('fs/promises')
 const bufSize = 1000000
+let sum = 0
 async function main () {
   const file = await fs.open('/home/sandro/log', 'r')
   const stat = await fs.stat('/home/sandro/log')
@@ -79,6 +80,14 @@ async function main () {
   }
   // console.log('stats:', {lineCount, cmdCount})
 
+
+  if (sum) {
+    if (!argv.includes('--csv')) {
+      console.log('#  total: ', Math.round(sum * 100) / 100)
+    }
+    sum = 0
+  }
+
   if (stack.length) {
     console.log('\n some unclosed entries: %O', stack.slice(0,5))
   }
@@ -102,6 +111,12 @@ function span(entry, stop, lowerEntry) {
   // skip a line if "new day"
   const adjstop = new Date(stop - 3600 * 1000 * 5) // 5 am
   if (adjstop.getDate() != prevDay) {
+    if (sum) {
+      if (!argv.includes('--csv')) {
+        console.log('#  total: ', Math.round(sum * 100) / 100)
+      }
+      sum = 0
+    }
     console.log()
     prevDay = adjstop.getDate()
   }
@@ -114,7 +129,8 @@ function span(entry, stop, lowerEntry) {
     if (argv.includes('--csv')) {
       console.log('%s\t%s\t%s\t%s', ('' + prevDay).padStart(2), ('' + hoursUsed).padStart(6), text.padEnd(40), stop.toLocaleString("en-US").padEnd(22))
     } else {
-      console.log(('' + hoursUsed).padStart(6), ' +# ', stop.toLocaleString("en-US").padEnd(22), '  ', text, start, stop, missing)
+      console.log(('' + hoursUsed).padStart(6), ' +# ', stop.toLocaleString("en-US").padEnd(22), '  ', text)// , start) // , stop, missing)
+      sum += hoursUsed
     }
   }
 
@@ -125,6 +141,7 @@ function span(entry, stop, lowerEntry) {
 }
 
 main()
+
 
 /*
   without seek
