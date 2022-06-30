@@ -3,14 +3,17 @@
 
 const argv = process.argv
 
+// A position between time chunks, somewhat near the end of file.
+// This is May 2020
+const position = 67000000
+
 const fs = require('fs/promises')
-const bufSize = 1000000
 let sum = 0
 async function main () {
   const file = await fs.open('/home/sandro/log', 'r')
   const stat = await fs.stat('/home/sandro/log')
   // console.log('stat:', stat)
-  const position = stat.size - bufSize
+  const bufSize = stat.size - position
   const buffer = Buffer.alloc(bufSize)
 
   await file.read(buffer, 0, bufSize, position)
@@ -53,7 +56,7 @@ async function main () {
           stack.push(entry)
         } else if (op === ')))') {
           const start = stack.pop()
-          if (!start) console.error('too many )))')
+          if (!start) console.error('too many ))) near ', lines.slice(lineCount-5, lineCount + 5))
           if (!span(start, date, stack[stack.length - 1])) {
             console.log('bad )))', start, m)
           }
@@ -113,7 +116,7 @@ function span(entry, stop, lowerEntry) {
   if (adjstop.getDate() != prevDay) {
     if (sum) {
       if (!argv.includes('--csv')) {
-        console.log('#  total: ', Math.round(sum * 100) / 100)
+        console.log('#  total: %o  day of month: %s', Math.round(sum * 100) / 100, prevDay)
       }
       sum = 0
     }
