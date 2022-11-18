@@ -97,6 +97,7 @@ async function main () {
 }
 
 let prevDay
+let prevStart
 function span(entry, stop, lowerEntry) {
   let {text, date: start, missing} = entry
   if (!missing) missing = 0
@@ -113,16 +114,23 @@ function span(entry, stop, lowerEntry) {
 
   // skip a line if "new day"
   const adjstop = new Date(stop - 3600 * 1000 * 5) // 5 am
+  // console.log(adjstop.getDate(), prevDay)
   if (adjstop.getDate() != prevDay) {
+    // console.log('new day', {prevDay, sum, stop})
     if (sum) {
-      if (!argv.includes('--csv')) {
+      if (argv.includes('--csv')) {
+        if (argv.includes('--day')) {
+          console.log('%s\t\%s', (new Date(prevStart - 3600 * 1000 * 5)).toISOString().slice(0,10), Math.round(sum * 100) / 100)
+        }
+      } else {
         console.log('#  total: %o  day of month: %s', Math.round(sum * 100) / 100, prevDay)
+        console.log()
       }
       sum = 0
     }
-    console.log()
     prevDay = adjstop.getDate()
   }
+  prevStart = start
 
   let skip = false
   if (argv.includes('--work')) {
@@ -130,11 +138,13 @@ function span(entry, stop, lowerEntry) {
   }
   if (!skip) {
     if (argv.includes('--csv')) {
-      console.log('%s\t%s\t%s\t%s', ('' + prevDay).padStart(2), ('' + hoursUsed).padStart(6), text.padEnd(40), stop.toLocaleString("en-US").padEnd(22))
+      if (!argv.includes('--day')) {
+        console.log('%s\t%s\t%s\t%s', ('' + prevDay).padStart(2), ('' + hoursUsed).padStart(6), text.padEnd(40), stop.toLocaleString("en-US").padEnd(22))
+      }
     } else {
       console.log(('' + hoursUsed).padStart(6), ' +# ', stop.toLocaleString("en-US").padEnd(22), '  ', text)// , start) // , stop, missing)
-      sum += hoursUsed
     }
+    sum += hoursUsed
   }
 
   if (lowerEntry) {
