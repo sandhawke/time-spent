@@ -5,7 +5,8 @@ const argv = process.argv
 
 // A position between time chunks, somewhat near the end of file.
 // This is May 2020
-const position = 67000000
+// const position = 67000000
+const position = 0
 
 const fs = require('fs/promises')
 let sum = 0

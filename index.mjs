@@ -5,7 +5,7 @@ export async function readMatchingLines (filename) {
   return new Promise((resolve, reject) => {
     const fileStream = fs.createReadStream(filename)
 
-    const timeLines = []
+    let timeLines = []
     let lineNumber = 0
     
     const rl = readline.createInterface({
@@ -21,16 +21,22 @@ export async function readMatchingLines (filename) {
     
     // Event handler for the 'line' event
     rl.on('line', (line) => {
+      if (line == null) return
       lineNumber++
+      // wtf, it counts 80 lines (0.0029% too high.  What is it counting?)
+      // Oh, it was ^M's
       if (line.startsWith('$$ ')) {
+        if (line.startsWith('$$ restart')) {
+          timeLines = []
+          return
+        }
         timeLines.push({text: line, lineNumber})
       }
     });
     
     // Event handler for the 'close' event
     rl.on('close', () => {
-      console.log('Finished processing the large text file');
-      console.log('%s time lines, %s lines', timeLines.length, lineNumber)
+      console.error('%s time lines, %s lines', timeLines.length, lineNumber)
       resolve(timeLines)
     });
   })
@@ -48,7 +54,13 @@ export function processTimeStack (lines, argv) {
     if (line.startsWith('$$ ')) {
       cmdCount++
       if (line.startsWith('$$ restart')) {
+        console.error('Restarting, with %o stack frames', stack.length)
         stack = []
+        continue
+      }
+      
+      if (line.startsWith('$$ stack')) {
+        console.error('Stack at %o is', {line, lineNumber}, stack)
         continue
       }
       
@@ -56,53 +68,60 @@ export function processTimeStack (lines, argv) {
       const m = line.match(/^\$\$ (.*?(\d\d\d\d)) ?(.*)/)
       if (m) {
         // console.log(m)
-        const datePart = m[1]
+        let datePart = m[1]
+        datePart = datePart.replace(/IST|CEST|CET/, 'GMT') // close enough, and JS wont parse those
         let date
         try {
           date = new Date(datePart)
           const iso = date.toISOString()
         } catch (e) {
-          console.error('BAD DATE', m, datePart, date)
+          console.error('BAD DATE', m, datePart, date, {lineNumber})
           continue
         }
         const [op, ...wordList] = m[3].split(' ')
         const text = wordList.join(' ')
         
         // console.log('\n', date.toISOString(), op, text)
-        const entry = {date, text}
+        const entry = {date, text, startingLineNumber: lineNumber}
 
         if (op === '(((') {
           stack.push(entry)
         } else if (op === ')))') {
           const start = stack.pop()
-          if (!start) console.error('too many ))) at line ', lineNumber)
-          if (!span(start, date, stack[stack.length - 1])) {
-            console.log('bad )))', start, m, lineNumber)
+          if (!start) console.error('too many ))) at line ', {lineNumber})
+          if (!span(start, date, stack[stack.length - 1], lineNumber)) {
+            console.error('bad )))', start, m, {lineNumber})
           }
         } else if (op === '),(') {
           const start = stack.pop()
-          if (!start) console.error('),( when not open at line ', lineNumber)
-          if (!span(start, date, stack[stack.length - 1])) {
-            console.log('bad ):(', start, m, lineNumber)
+          if (!start) console.error('),( when not open at line ', {lineNumber})
+          if (!span(start, date, stack[stack.length - 1], lineNumber)) {
+            console.error('bad ),(', start, m, {lineNumber})
           }
           stack.push(entry)
-        } else {
+        } else if (op.match(/^\d+:\d+$/)) {
           const [hs, ms] = op.split(':')
           const hours = parseFloat(hs) || 0
           const minutes = parseFloat(ms) || 0
           const dur = 3600000 * hours + 60000 * minutes
-          if (!span({text, date: new Date(date - dur)}, date, stack[stack.length - 1])) {
-            console.log('bad h:m', m)
+          if (!span({text, date: new Date(date - dur)}, date, stack[stack.length - 1], lineNumber)) {
+            console.error('bad h:m', m)
           }
+        } else if (op === '') {
+          // ignore
+        } else {
+          console.error('bad line', {lineNumber}, line)
         }
       } else {
-        console.log('bad format: %o', line)
+        if (line.match(/LANGUAGE plpgsql/)) continue
+        if (line.match(/^\$\$ money/)) continue
+        if (line.match(/^\$\$ IRF HOURS/)) continue
+        console.error('bad format: %o', line, {lineNumber})
       }
     }
     
   }
   // console.log('stats:', {lineCount, cmdCount})
-
 
   if (sum) {
     if (!argv.includes('--csv')) {
@@ -112,11 +131,11 @@ export function processTimeStack (lines, argv) {
   }
 
   if (stack.length) {
-    console.log('\n\n## Warning: %s unclosed entries:\n%O', stack.length, stack.slice(0,5))
+    console.error('\n\n## Warning: %s unclosed entries:\n%O', stack.length, stack.slice(0,5))
   }
 
-  function span(entry, stop, lowerEntry) {
-    let {text, date: start, missing} = entry
+  function span(entry, stop, lowerEntry, endingLineNumber) {
+    let {text, date: start, missing, startingLineNumber} = entry
     if (!missing) missing = 0
 
     const passed = stop - start
@@ -127,6 +146,14 @@ export function processTimeStack (lines, argv) {
     // console.warn('%o', {entry, stop, lowerEntry, hours, lowerEntry})
     if (isNaN(hoursUsed)) {
       return false
+    }
+    if (hoursPassed > 24) {
+      console.error('\n\n# warning: entry over 24 hours lines %s - %s text=%o', entry.startingLineNumber, endingLineNumber, text)
+      // return false
+    }
+    if (hoursPassed < 0) {
+      console.error('\n\n# warning: entry has negative time, lines %s - %s text=%o', entry.startingLineNumber, endingLineNumber, text)
+      // return false
     }
 
     // skip a line if "new day"
@@ -156,7 +183,7 @@ export function processTimeStack (lines, argv) {
     if (!skip) {
       if (argv.includes('--csv')) {
         if (!argv.includes('--day')) {
-          console.log('%s\t%s\t%s\t%s', ('' + prevDay).padStart(2), ('' + hoursUsed).padStart(6), text.padEnd(40), stop.toLocaleString("en-US").padEnd(22))
+          console.log('%s\t%s\t%s\t%s\t%s', ('' + prevDay).padStart(2), ('' + hoursUsed).padStart(6), text.padEnd(40), stop.toLocaleString("en-US").padEnd(22), endingLineNumber)
         }
       } else {
         console.log(('' + hoursUsed).padStart(6), ' +# ', stop.toLocaleString("en-US").padEnd(22), '  ', text)// , start) // , stop, missing)
